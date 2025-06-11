@@ -1,6 +1,7 @@
 "use strict";
 
 import { fetchFakerData } from './functions.js';
+import { saveVote, getVotes } from './firebase.js';
 
 /**
  * Muestra la notificación toast si existe el elemento con el ID 'toast-interactive'.
@@ -80,6 +81,89 @@ const loadData = async () => {
 };
 
 /**
+ * Habilita el formulario de votación y envía los datos a Firebase.
+ */
+const enableForm = () => {
+  const form = document.getElementById('form_voting');
+  const select = document.getElementById('select_product');
+  if (!form || !select) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const value = select.value;
+    if (!value) return;
+
+    // Guardar voto en Firebase
+    const result = await saveVote(value);
+
+    // Mostrar mensaje de éxito o error
+    alert(result.message);
+
+    // Limpiar formulario
+    form.reset();
+
+    // Actualizar la tabla de resultados
+    displayVotes();
+  });
+};
+
+/**
+ * Obtiene los votos de Firebase y los muestra en una tabla.
+ */
+const displayVotes = async () => {
+  const results = document.getElementById('results');
+  if (!results) return;
+
+  const response = await getVotes();
+  if (!response.success) {
+    results.innerHTML = `<p class="text-red-500 text-center mt-16">${response.message}</p>`;
+    return;
+  }
+
+  const votes = response.data || {};
+  // Contar votos por producto
+  const counts = { product1: 0, product2: 0, product3: 0 };
+  Object.values(votes).forEach(vote => {
+    if (vote.product && counts.hasOwnProperty(vote.product)) {
+      counts[vote.product]++;
+    }
+  });
+  const total = counts.product1 + counts.product2 + counts.product3;
+
+  // Crear tabla
+  results.innerHTML = `
+    <h3 class="text-lg font-semibold mb-2 text-gray-700">Resultados:</h3>
+    <table class="min-w-full text-center">
+      <thead>
+        <tr>
+          <th class="px-4 py-2">Producto</th>
+          <th class="px-4 py-2">Votos</th>
+          <th class="px-4 py-2">Porcentaje</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Producto 1</td>
+          <td>${counts.product1}</td>
+          <td>${total ? ((counts.product1/total)*100).toFixed(1) : 0}%</td>
+        </tr>
+        <tr>
+          <td>Producto 2</td>
+          <td>${counts.product2}</td>
+          <td>${total ? ((counts.product2/total)*100).toFixed(1) : 0}%</td>
+        </tr>
+        <tr>
+          <td>Producto 3</td>
+          <td>${counts.product3}</td>
+          <td>${total ? ((counts.product3/total)*100).toFixed(1) : 0}%</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="mt-4 text-sm text-gray-500">Total de votos: ${total}</p>
+  `;
+};
+
+/**
  * Función de autoejecución que inicializa la interfaz.
  * @function
  * @returns {void}
@@ -88,4 +172,12 @@ const loadData = async () => {
   showToast();
   showVideo();
   loadData();
+  enableForm();
+  displayVotes();
 })();
+
+/*
+Explicación de la interacción JS-UI y envío de datos a Firebase:
+El formulario HTML es gestionado por JavaScript, que captura el evento submit, obtiene el valor seleccionado y llama a saveVote para guardar el voto en Firebase. Luego, se actualiza la tabla de resultados llamando a displayVotes, que obtiene los votos desde Firebase y los muestra en la interfaz.
+*/
+
