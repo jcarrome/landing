@@ -1,6 +1,8 @@
 "use strict";
 
 import { fetchFakerData } from './functions.js';
+import { saveVote, getVotes } from './firebase.js';
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
 
 /**
  * Muestra la notificación toast si existe el elemento con el ID 'toast-interactive'.
@@ -79,13 +81,90 @@ const loadData = async () => {
   }
 };
 
-/**
- * Función de autoejecución que inicializa la interfaz.
- * @function
- * @returns {void}
- */
+let clickCount = 0; // Contador global
+
+// Función para habilitar el formulario y manejar el envío
+function enableForm() {
+  const form = document.getElementById('form_voting');
+  if (!form) return;
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    clickCount++; // Incrementa el contador en cada click
+
+    const select = document.getElementById('select_product');
+    if (!select) return;
+
+    const productID = select.value;
+    const result = await saveVote(productID);
+    alert(result.message);
+    form.reset();
+
+    // Mostrar los votos y el contador de clicks
+    displayVotes();
+  });
+}
+
+// Función para mostrar los resultados de la votación
+async function displayVotes() {
+  const resultsDiv = document.getElementById('results');
+  if (!resultsDiv) return;
+
+  // Limpia el contenido mientras carga
+  resultsDiv.innerHTML = `<p class="text-gray-500 text-center mt-16">Cargando resultados...</p>`;
+
+  let votes;
+  try {
+    votes = await getVotes();
+  } catch (error) {
+    resultsDiv.innerHTML = `<p class="text-red-500 text-center mt-16">Error al obtener los votos.</p>`;
+    return;
+  }
+
+  // Inicializa el conteo de todos los productos en 0
+  const counts = { product1: 0, product2: 0, product3: 0 };
+
+  if (votes) {
+    Object.values(votes).forEach(vote => {
+      if (vote.productID && counts.hasOwnProperty(vote.productID)) {
+        counts[vote.productID]++;
+      }
+    });
+  }
+
+  // Crear filas para la tabla
+  let rows = '';
+  Object.entries(counts).forEach(([product, total]) => {
+    rows += `<tr class="border-b">
+      <td class="py-2 px-4 text-center">${product.replace('product', 'Producto ')}</td>
+      <td class="py-2 px-4 text-center">${total}</td>
+    </tr>`;
+  });
+
+  // Construir la tabla y mostrar el contador de clicks
+  resultsDiv.innerHTML = `
+    <h3 class="text-lg font-semibold mb-2">Resultados de la votación</h3>
+    <div class="mb-2 text-blue-700 font-bold">Clicks en VOTAR: ${clickCount}</div>
+    <table class="min-w-full text-sm text-gray-700 border">
+      <thead>
+        <tr>
+          <th class="py-2 px-4 border-b">Producto</th>
+          <th class="py-2 px-4 border-b">Total de votos</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+      </tbody>
+    </table>
+  `;
+}
+
+// Inicializa todo al cargar la página
 (() => {
   showToast();
   showVideo();
   loadData();
+  enableForm();
+  displayVotes();
 })();
